@@ -1,0 +1,7 @@
+[
+  {
+    "source_workspace_id": "<Workspace ID to backup>",
+    "source_workspace_name": "<Name of workspace to backup>",
+    "backup_workspace_name": "<Name of workspace for backup>"
+  }
+]
