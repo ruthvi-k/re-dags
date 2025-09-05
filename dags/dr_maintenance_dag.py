@@ -8,13 +8,6 @@ from include.create_backup_workspaces import create_backup_workspaces, map_sourc
 from include.create_backup_deployments import create_backup_deployments, get_source_deployments_payload
 from include.manage_backup_hibernation import manage_backup_hibernation
 from include.deploy_to_backup_deployments import replicate_deploy_to_backup
-from include.migrate_with_starship import (
-    migrate_variables,
-    migrate_pools,
-    migrate_dag_runs,
-    migrate_task_instances,
-    flip_dags_state
-)
 
 @dag(
     dag_id="dr_maintenance_dag",
@@ -96,8 +89,7 @@ def dr_maintenance_dag():
         failover = bool(context["params"].get("failover", False))
         if failover:
             return "failover_to_backup_deployment_task"
-        else:
-            return "starship_migration_task"
+ 
     
     @task(trigger_rule="none_failed", map_index_template="{{ backup_deployment_id }}")
     def failover_to_backup_deployment_task(deployments):
@@ -110,37 +102,6 @@ def dr_maintenance_dag():
         flip_dags_state(
             dag_state='pause',
             deployment_url=f"{ORG_ID}.astronomer.run/d{source_deployment_id[-7:]}"
-        )
-
-    @task(trigger_rule="all_done", map_index_template="{{ backup_deployment_id }}")
-    def starship_migration_task(deployments):
-        ORG_ID = os.environ["ASTRO_ORGANIZATION_ID"]
-        source_deployment_id = deployments.get("source_deployment_id")
-        backup_deployment_id = deployments.get("backup_deployment_id")
-        source_deployment_url = f"{ORG_ID}.astronomer.run/d{source_deployment_id[-7:]}"
-        target_deployment_url = f"{ORG_ID}.astronomer.run/d{backup_deployment_id[-7:]}"
-
-        context = get_current_context()
-        context["backup_deployment_id"] = f"{backup_deployment_id} - Migrate History"
-
-        migrate_variables(
-            source_deployment_url=source_deployment_url,
-            target_deployment_url=target_deployment_url,
-        )
-
-        migrate_pools(
-            source_deployment_url=source_deployment_url,
-            target_deployment_url=target_deployment_url,
-        )
-
-        migrate_dag_runs(
-            source_deployment_url=source_deployment_url,
-            target_deployment_url=target_deployment_url,
-        )
-
-        migrate_task_instances(
-            source_deployment_url=source_deployment_url,
-            target_deployment_url=target_deployment_url,
         )
 
     @task(trigger_rule="all_done", map_index_template="{{ backup_deployment_id }}")
@@ -177,11 +138,9 @@ def dr_maintenance_dag():
 
     failover = failover_to_backup_deployment_task.expand(deployments=created_deployments)
 
-    starship_migration = starship_migration_task.expand(deployments=created_deployments)
-
     post_migration = post_migration_activities.expand(deployments=created_deployments)
 
-    unhibernate_task >> replicate_deploy >> is_failover >> starship_migration >> post_migration
-    is_failover >> failover >> starship_migration
+    unhibernate_task >> replicate_deploy >> is_failover >> post_migration
+    is_failover >> failover
 
 dr_maintenance_dag()
