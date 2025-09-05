@@ -14,6 +14,7 @@ For more information on XComs in Airflow, see the documentation:
 https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/xcoms.html
 """
 
+import airflow.providers.microsoft.azure.fs.adls
 from airflow.decorators import dag, task
 from pendulum import datetime
 
